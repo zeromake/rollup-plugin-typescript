@@ -51,3 +51,46 @@ typescript({
 
 ## Issues
 Emit-less types, see [#28](https://github.com/rollup/rollup-plugin-typescript/issues/28).
+
+## Use new typescript
+
+### 1. set rollup config
+
+install new typescript
+
+`npm i typescript -D`
+
+rollup config
+
+``` javascript
+import rollupTypescript from 'rollup-plugin-typescript'
+import typescript from 'typescript'
+
+export default {
+    entry: 'src/index.ts',
+    plugins: [rollupTypescript({
+      typescript
+    })],
+}
+```
+
+### 2. use this package
+
+install this package
+
+`npm i zeromake/rollup-plugin-typescript -D`
+
+rollup config
+
+``` javascript
+import rollupTypescript from 'rollup-plugin-typescript'
+
+export default {
+    entry: 'src/index.ts',
+    plugins: [rollupTypescript()],
+}
+```
+
+last typescript version
+
+`now: "typescript": "^2.4.1"`
