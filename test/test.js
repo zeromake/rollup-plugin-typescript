@@ -8,10 +8,10 @@ process.chdir( __dirname );
 // Evaluate a bundle (as CommonJS) and return its exports.
 function evaluate ( bundle ) {
 	const module = { exports: {} };
-
-	new Function( 'module', 'exports', bundle.generate({ format: 'cjs' }).code )( module, module.exports );
-
-	return module.exports;
+	return bundle.generate({ format: 'cjs' }).then(res => {
+		new Function( 'module', 'exports', res.code )( module, module.exports );
+		return Promise.resolve(module.exports);
+	});
 }
 
 // Short-hand for rollup using the typescript plugin.
@@ -26,8 +26,8 @@ describe( 'rollup-plugin-typescript', function () {
 	this.timeout( 5000 );
 
 	it( 'runs code through typescript', () => {
-		return bundle( 'sample/basic/main.ts' ).then( bundle => {
-			const code = bundle.generate().code;
+		return bundle( 'sample/basic/main.ts' ).then(bundle => bundle.generate()).then(bundle => {
+			const code = bundle.code;
 
 			assert.ok( code.indexOf( 'number' ) === -1, code );
 			assert.ok( code.indexOf( 'const' ) === -1, code );
@@ -41,15 +41,15 @@ describe( 'rollup-plugin-typescript', function () {
 	it( 'handles async functions', () => {
 		return bundle( 'sample/async/main.ts' )
 			.then( bundle => {
-				const wait = evaluate( bundle );
-
-				return wait( 3 );
+				evaluate( bundle ).then(wait => {
+					return wait( 3 );
+				});
 			});
 	});
 
 	it( 'does not duplicate helpers', () => {
-		return bundle( 'sample/dedup-helpers/main.ts' ).then( bundle => {
-			const code = bundle.generate().code;
+		return bundle( 'sample/dedup-helpers/main.ts' ).then(bundle => bundle.generate()).then( bundle => {
+			const code = bundle.code;
 
 			// The `__extends` function is defined in the bundle.
 			assert.ok( code.indexOf( 'function __extends' ) > -1, code );
@@ -60,8 +60,8 @@ describe( 'rollup-plugin-typescript', function () {
 	});
 
 	it( 'transpiles `export class A` correctly', () => {
-		return bundle( 'sample/export-class-fix/main.ts' ).then( bundle => {
-			const code = bundle.generate().code;
+		return bundle( 'sample/export-class-fix/main.ts' ).then(bundle => bundle.generate()).then( bundle => {
+			const code = bundle.code;
 
 			assert.equal( code.indexOf( 'class' ), -1, code );
 			assert.ok( code.indexOf( 'var A = (function' ) !== -1, code );
@@ -71,8 +71,8 @@ describe( 'rollup-plugin-typescript', function () {
 	});
 
 	it( 'transpiles ES6 features to ES5 with source maps', () => {
-		return bundle( 'sample/import-class/main.ts' ).then( bundle => {
-			const code = bundle.generate().code;
+		return bundle( 'sample/import-class/main.ts' ).then(bundle => bundle.generate()).then( bundle => {
+			const code = bundle.code;
 
 			assert.equal( code.indexOf( 'class' ), -1, code );
 			assert.equal( code.indexOf( '...' ), -1, code );
@@ -81,21 +81,23 @@ describe( 'rollup-plugin-typescript', function () {
 	});
 
 	it( 'reports diagnostics and throws if errors occur during transpilation', () => {
-		return bundle( 'sample/syntax-error/missing-type.ts' ).catch( error => {
+		return bundle( 'sample/syntax-error/missing-type.ts' ).then(bundle => bundle.generate()).catch( error => {
 			assert.ok( error.message.indexOf( 'There were TypeScript errors transpiling' ) !== -1, 'Should reject erroneous code.' );
 		});
 	});
 
 	it( 'works with named exports for abstract classes', () => {
-		return bundle( 'sample/export-abstract-class/main.ts' ).then(bundle => {
-			const code = bundle.generate().code;
+		return bundle( 'sample/export-abstract-class/main.ts' ).then(bundle => bundle.generate()).then(bundle => {
+			const code = bundle.code;
 			assert.ok( code.length > 0, code );
 		});
 	});
 
 	it( 'should use named exports for classes', () => {
 		return bundle( 'sample/export-class/main.ts' ).then( bundle => {
-			assert.equal( evaluate( bundle ).foo, 'bar' );
+			return evaluate( bundle ).then(res => {
+				assert.equal( res.foo, 'bar' );
+			});
 		});
 	});
 
@@ -118,7 +120,9 @@ describe( 'rollup-plugin-typescript', function () {
 				}
 			})
 		}).then( bundle => {
-			assert.equal( evaluate( bundle ), 1337 );
+			return evaluate( bundle ).then(res => {
+				assert.equal( res, 1337 );
+			});
 		});
 	});
 
@@ -176,8 +180,8 @@ describe( 'rollup-plugin-typescript', function () {
 	});
 
 	it( 'should transpile JSX if enabled', () => {
-		return bundle( 'sample/jsx/main.tsx', { jsx: 'react' }).then( bundle => {
-			const code = bundle.generate().code;
+		return bundle( 'sample/jsx/main.tsx', { jsx: 'react' }).then(bundle => bundle.generate()).then( bundle => {
+			const code = bundle.code;
 
 			assert.notEqual( code.indexOf( 'const __assign = ' ), -1,
 				'should contain __assign definition' );
@@ -212,11 +216,8 @@ describe( 'rollup-plugin-typescript', function () {
 	it( 'does not include helpers in source maps', () => {
 		return bundle( 'sample/dedup-helpers/main.ts', {
 			sourceMap: true
-		}).then( bundle => {
-			const { map } = bundle.generate({
-				sourceMap: true
-			});
-
+		}).then(bundle => bundle.generate({ sourceMap: true })).then( bundle => {
+			const { map } = bundle;
 			assert.ok( map.sources.every( source => source.indexOf( 'typescript-helpers' ) === -1) );
 		});
 	});
