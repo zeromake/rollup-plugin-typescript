@@ -7,7 +7,7 @@ env:
     mocha: true
 
 parserOptions:
-    ecmaVersion: 6
+    ecmaVersion: 8
     sourceType: "module"
 
 extends: "eslint:recommended"
@@ -26,7 +26,7 @@ rules:
     no-class-assign: 2
     no-this-before-super: 2
     no-var: 2
-    no-unreachable: 2
+    no-unreachable: 0
     valid-typeof: 2
     quote-props: [ 2, "as-needed" ]
     one-var: [ 2, "never" ]

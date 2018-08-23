@@ -1,14 +1,11 @@
-import { DiagnosticCategory } from 'typescript';
-import * as ts from 'typescript';
-import { createFilter } from 'rollup-pluginutils';
 import { resolve, sep } from 'path';
-import * as path from 'path';
-import { existsSync, readFileSync, statSync } from 'fs';
-import * as fs from 'fs';
-import assign from 'object-assign';
 import compareVersions from 'compare-versions';
+import { existsSync, readFileSync, statSync } from 'fs';
 import { erase } from 'tippex';
-import * as tippex from 'tippex';
+import * as ts from 'typescript';
+import { DiagnosticCategory } from 'typescript';
+import { createFilter } from 'rollup-pluginutils';
+import assign from 'object-assign';
 
 function endsWith ( str, tail ) {
 	return !tail.length || str.slice( -tail.length ) === tail;
@@ -49,7 +46,7 @@ function findFile ( cwd, filename ) {
 function compilerOptionsFromTsConfig ( typescript ) {
 	var cwd = process.cwd();
 
-	var tsconfig = typescript.readConfigFile( findFile( cwd, 'tsconfig.json' ), function (path$$1) { return readFileSync( path$$1, 'utf8' ); } );
+	var tsconfig = typescript.readConfigFile( findFile( cwd, 'tsconfig.json' ), function (path) { return readFileSync( path, 'utf8' ); } );
 
 	if ( !tsconfig.config || !tsconfig.config.compilerOptions ) { return {}; }
 
@@ -182,74 +179,76 @@ interface Options {
 
 // The injected id for helpers. Intentially invalid to prevent helpers being included in source maps.
 var helpersId = '\0typescript-helpers';
-var helpersSource = readFileSync( resolve( __dirname, '../src/typescript-helpers.js' ), 'utf-8' );
+// const helpersPath = "../node_modules/tslib/tslib.es6.js";
+var helpersPath = '../src/typescript-helpers.js';
+var helpersSource = readFileSync(resolve(__dirname, helpersPath), 'utf-8');
 
-function typescript ( options ) {
-	options = assign( {}, options || {} );
+function typescript (options) {
+	options = assign({}, options || {});
 
 	var filter = createFilter(
-		options.include || [ '*.ts+(|x)', '**/*.ts+(|x)' ],
-		options.exclude || [ '*.d.ts', '**/*.d.ts' ] );
+		options.include || ['*.ts+(|x)', '**/*.ts+(|x)'],
+		options.exclude ||  ['*.d.ts', '**/*.d.ts']);
 
 	delete options.include;
 	delete options.exclude;
 
 	// Allow users to override the TypeScript version used for transpilation.
-	var typescript = options.typescript || ts;
+	var typescript = options.typescript ||  ts;
 
 	delete options.typescript;
 
 	// Load options from `tsconfig.json` unless explicitly asked not to.
-	var tsconfig = options.tsconfig === false ? {} :
-		compilerOptionsFromTsConfig( typescript );
+	var tsconfig = options.tsconfig === false ? {}  :
+		compilerOptionsFromTsConfig(typescript);
 
 	delete options.tsconfig;
 
 	// Since the CompilerOptions aren't designed for the Rollup
 	// use case, we'll adjust them for use with Rollup.
-	adjustCompilerOptions( typescript, tsconfig );
-	adjustCompilerOptions( typescript, options );
+	adjustCompilerOptions(typescript, tsconfig);
+	adjustCompilerOptions(typescript, options);
 
 	// Merge all options.
-	options = assign( tsconfig, getDefaultOptions(), options );
+	options = assign(tsconfig, getDefaultOptions(), options);
 
 	// Verify that we're targeting ES2015 modules.
-	if ( options.module !== 'es2015' && options.module !== 'es6' ) {
-		throw new Error( ("rollup-plugin-typescript: The module kind should be 'es2015', found: '" + (options.module) + "'") );
+	if (options.module !== 'es2015' && options.module !== 'es6') {
+		throw new Error(("rollup-plugin-typescript: The module kind should be 'es2015', found: '" + (options.module) + "'"));
 	}
 
-	var parsed = typescript.convertCompilerOptionsFromJson( options, process.cwd() );
+	var parsed = typescript.convertCompilerOptionsFromJson(options, process.cwd());
 
-	if ( parsed.errors.length ) {
-		parsed.errors.forEach( function (error) { return console.error( ("rollup-plugin-typescript: " + (error.messageText)) ); } );
+	if (parsed.errors.length) {
+		parsed.errors.forEach(function (error) { return console.error(("rollup-plugin-typescript: " + (error.messageText))); });
 
-		throw new Error( "rollup-plugin-typescript: Couldn't process compiler options" );
+		throw new Error("rollup-plugin-typescript: Couldn't process compiler options");
 	}
 
 	var compilerOptions = parsed.options;
 
 	return {
-		resolveId: function resolveId ( importee, importer ) {
+		resolveId: function resolveId (importee, importer) {
 			// Handle the special `typescript-helpers` import itself.
-			if ( importee === helpersId ) {
+			if (importee === helpersId) {
 				return helpersId;
 			}
 
-			if ( !importer ) { return null; }
+			if (!importer) { return null; }
 
 			var result;
 
 			importer = importer.split('\\').join('/');
 
-			if ( compareVersions( typescript.version, '1.8.0' ) < 0 ) {
+			if (compareVersions(typescript.version, '1.8.0') < 0) {
 				// Suppress TypeScript warnings for function call.
-				result = typescript.nodeModuleNameResolver( importee, importer, resolveHost );
+				result = typescript.nodeModuleNameResolver(importee, importer, resolveHost);
 			} else {
-				result = typescript.nodeModuleNameResolver( importee, importer, compilerOptions, resolveHost );
+				result = typescript.nodeModuleNameResolver(importee, importer, compilerOptions, resolveHost);
 			}
 
-			if ( result.resolvedModule && result.resolvedModule.resolvedFileName ) {
-				if ( endsWith( result.resolvedModule.resolvedFileName, '.d.ts' ) ) {
+			if (result.resolvedModule && result.resolvedModule.resolvedFileName) {
+				if (endsWith(result.resolvedModule.resolvedFileName, '.d.ts')) {
 					return null;
 				}
 
@@ -259,16 +258,16 @@ function typescript ( options ) {
 			return null;
 		},
 
-		load: function load ( id ) {
-			if ( id === helpersId ) {
+		load: function load (id) {
+			if (id === helpersId) {
 				return helpersSource;
 			}
 		},
 
-		transform: function transform ( code, id ) {
-			if ( !filter( id ) ) { return null; }
+		transform: function transform (code, id) {
+			if (!filter(id)) { return null; }
 
-			var transformed = typescript.transpileModule( fix( code, id ), {
+			var transformed = typescript.transpileModule(fix(code, id), {
 				fileName: id,
 				reportDiagnostics: true,
 				compilerOptions: compilerOptions
@@ -276,36 +275,36 @@ function typescript ( options ) {
 
 			// All errors except `Cannot compile modules into 'es6' when targeting 'ES5' or lower.`
 			var diagnostics = transformed.diagnostics ?
-				transformed.diagnostics.filter( function (diagnostic) { return diagnostic.code !== 1204; } ) : [];
+				transformed.diagnostics.filter(function (diagnostic) { return diagnostic.code !== 1204; }) : [];
 
 			var fatalError = false;
 
-			diagnostics.forEach( function (diagnostic) {
+			diagnostics.forEach(function (diagnostic) {
 				var message = typescript.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
 
-				if ( diagnostic.file ) {
-					var ref = diagnostic.file.getLineAndCharacterOfPosition( diagnostic.start );
+				if (diagnostic.file) {
+					var ref = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
 					var line = ref.line;
 					var character = ref.character;
 
-					console.error( ((diagnostic.file.fileName) + "(" + (line + 1) + "," + (character + 1) + "): error TS" + (diagnostic.code) + ": " + message) );
+					console.error(((diagnostic.file.fileName) + "(" + (line + 1) + "," + (character + 1) + "): error TS" + (diagnostic.code) + ": " + message));
 				} else {
-					console.error( ("Error: " + message) );
+					console.error(("Error: " + message));
 				}
 
-				if ( diagnostic.category === DiagnosticCategory.Error ) {
+				if (diagnostic.category === DiagnosticCategory.Error) {
 					fatalError = true;
 				}
 			});
 
-			if ( fatalError ) {
-				throw new Error( "There were TypeScript errors transpiling" );
+			if (fatalError) {
+				throw new Error("There were TypeScript errors transpiling");
 			}
 
 			return {
 				// Always append an import for the helpers.
 				code: transformed.outputText +
-					"\nimport { __assign, __awaiter, __extends, __decorate, __metadata, __param } from '" + helpersId + "';",
+					"\nimport {\n\t\t\t\t\t\t__extends,\n\t\t\t\t\t\t__assign,\n\t\t\t\t\t\t__rest,\n\t\t\t\t\t\t__decorate,\n\t\t\t\t\t\t__param,\n\t\t\t\t\t\t__metadata,\n\t\t\t\t\t\t__awaiter,\n\t\t\t\t\t\t__generator,\n\t\t\t\t\t\t__exportStar,\n\t\t\t\t\t\t__values,\n\t\t\t\t\t\t__read,\n\t\t\t\t\t\t__spread,\n\t\t\t\t\t\t__await,\n\t\t\t\t\t\t__asyncGenerator,\n\t\t\t\t\t\t__asyncDelegator,\n\t\t\t\t\t\t__asyncValues,\n\t\t\t\t\t\t__makeTemplateObject,\n\t\t\t\t\t\t__importStar,\n\t\t\t\t\t} from '" + helpersId + "';",
 
 				// Rollup expects `map` to be an object so we must parse the string
 				map: transformed.sourceMapText ? JSON.parse(transformed.sourceMapText) : null
